@@ -7,14 +7,25 @@ let currentChat = 'all';          // 'all' or another user's socket id
 const chats = { all: [] };        // chat key -> list of messages
 const chatNames = { all: 'Everyone' };
 const unread = {};
+let onlineUsers = [];
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp)$/i;
+const AUDIO_EXT = /\.(aac|m4a|mp3|oga|ogg|opus|wav|weba|webm)$/i;
 
 // ---------- Drawer (People & files) on phones ----------
-function closeMenu() { document.body.classList.remove('menu-open'); }
-$('menuBtn').onclick = () => document.body.classList.toggle('menu-open');
-$('asideClose').onclick = closeMenu;
-$('backdrop').onclick = closeMenu;
+function setMenuOpen(open) {
+  document.body.classList.toggle('menu-open', open);
+  $('menuBtn').setAttribute('aria-expanded', String(open));
+}
+function closeMenu() { setMenuOpen(false); }
+$('menuBtn').addEventListener('click', () => {
+  setMenuOpen(!document.body.classList.contains('menu-open'));
+});
+$('asideClose').addEventListener('click', closeMenu);
+$('backdrop').addEventListener('click', closeMenu);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeMenu();
+});
 
 $('nameInput').value = localStorage.getItem('name') || '';
 
@@ -198,6 +209,7 @@ socket.on('private', (m) => {
 });
 
 socket.on('users', (list) => {
+  onlineUsers = list;
   $('count').textContent = `${list.length} online`;
   const ul = $('users');
   ul.innerHTML = '';
@@ -232,14 +244,138 @@ $('msgForm').addEventListener('submit', (e) => {
     });
   }
   $('msgInput').value = '';
+  hideMentionPicker();
+});
+
+// ---------- People tags ----------
+const msgInput = $('msgInput');
+const mentionPicker = $('mentionPicker');
+let mentionOptions = [];
+let selectedMention = 0;
+let mentionRange = null;
+
+function hideMentionPicker() {
+  mentionPicker.hidden = true;
+  mentionPicker.replaceChildren();
+  mentionOptions = [];
+  mentionRange = null;
+}
+
+function updateMentionPicker() {
+  const caret = msgInput.selectionStart;
+  const beforeCaret = msgInput.value.slice(0, caret);
+  const at = beforeCaret.lastIndexOf('@');
+  if (at < 0 || (at > 0 && !/\s/.test(beforeCaret[at - 1]))) {
+    hideMentionPicker();
+    return;
+  }
+
+  const query = beforeCaret.slice(at + 1);
+  if (/[\r\n,!?]/.test(query)) {
+    hideMentionPicker();
+    return;
+  }
+
+  mentionOptions = onlineUsers
+    .filter((user) => user.id !== socket.id && user.name.toLowerCase().startsWith(query.toLowerCase()))
+    .slice(0, 6);
+  if (!mentionOptions.length) {
+    hideMentionPicker();
+    return;
+  }
+
+  mentionRange = { start: at, end: caret };
+  selectedMention = 0;
+  mentionPicker.replaceChildren();
+  mentionOptions.forEach((user, index) => {
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = 'mention-option' + (index === selectedMention ? ' selected' : '');
+    option.setAttribute('role', 'option');
+    option.textContent = '@' + user.name;
+    option.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      selectMention(index);
+    });
+    option.addEventListener('click', () => selectMention(index));
+    mentionPicker.appendChild(option);
+  });
+  mentionPicker.hidden = false;
+}
+
+function selectMention(index) {
+  const user = mentionOptions[index];
+  if (!user || !mentionRange) return;
+
+  const start = mentionRange.start;
+  const end = mentionRange.end;
+  const insertion = '@' + user.name + ' ';
+  msgInput.value = msgInput.value.slice(0, start) + insertion + msgInput.value.slice(end);
+  const caret = start + insertion.length;
+  msgInput.focus();
+  msgInput.setSelectionRange(caret, caret);
+  hideMentionPicker();
+}
+
+msgInput.addEventListener('input', updateMentionPicker);
+msgInput.addEventListener('click', updateMentionPicker);
+msgInput.addEventListener('keyup', (event) => {
+  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown' && event.key !== 'Escape') {
+    updateMentionPicker();
+  }
+});
+msgInput.addEventListener('keydown', (event) => {
+  if (mentionPicker.hidden) return;
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    selectedMention = (selectedMention + (event.key === 'ArrowDown' ? 1 : mentionOptions.length - 1)) % mentionOptions.length;
+    [...mentionPicker.children].forEach((option, index) => {
+      option.classList.toggle('selected', index === selectedMention);
+    });
+  } else if (event.key === 'Enter' && mentionOptions[selectedMention]) {
+    event.preventDefault();
+    selectMention(selectedMention);
+  } else if (event.key === 'Escape') {
+    hideMentionPicker();
+  }
+});
+
+// ---------- Quick emoji reactions ----------
+const emojiBtn = $('emojiBtn');
+const emojiPicker = $('emojiPicker');
+
+emojiBtn.onclick = () => {
+  emojiPicker.hidden = !emojiPicker.hidden;
+  emojiBtn.setAttribute('aria-expanded', String(!emojiPicker.hidden));
+};
+
+emojiPicker.addEventListener('click', (e) => {
+  const button = e.target.closest('[data-emoji]');
+  if (!button) return;
+
+  const input = $('msgInput');
+  const draft = input.value;
+  input.value = button.dataset.emoji;
+  $('msgForm').requestSubmit();
+  input.value = draft;
+  emojiPicker.hidden = true;
+  emojiBtn.setAttribute('aria-expanded', 'false');
+  input.focus();
 });
 
 // ---------- Sending files with the + button ----------
 $('plusBtn').onclick = () => $('fileInput').click();
 
-$('fileInput').addEventListener('change', () => {
-  const file = $('fileInput').files[0];
+function uploadFile(file, onComplete) {
   if (!file) return;
+  if (file.type.toLowerCase().startsWith('audio/') || AUDIO_EXT.test(file.name)) {
+    const status = $('uploadStatus');
+    status.hidden = false;
+    status.textContent = 'Audio sharing is not available.';
+    setTimeout(() => { status.hidden = true; }, 4000);
+    if (onComplete) onComplete(false);
+    return;
+  }
 
   const form = new FormData();
   form.append('file', file);
@@ -261,20 +397,32 @@ $('fileInput').addEventListener('change', () => {
   xhr.onload = () => {
     if (xhr.status === 200) {
       status.hidden = true;
+      if (onComplete) onComplete(true);
     } else {
       let msg = 'Upload failed';
       try { msg += ': ' + JSON.parse(xhr.responseText).error; } catch (e) {}
       status.textContent = msg;
       setTimeout(() => { status.hidden = true; }, 4000);
+      if (onComplete) onComplete(false);
     }
   };
   xhr.onerror = () => {
     status.textContent = 'Upload failed (network error)';
     setTimeout(() => { status.hidden = true; }, 4000);
+    if (onComplete) onComplete(false);
   };
   xhr.send(form);
-  $('fileInput').value = '';
-});
+}
+
+function handleFileSelection(event) {
+  const input = event.currentTarget;
+  const file = input.files[0];
+  if (!file) return;
+  uploadFile(file);
+  input.value = '';
+}
+
+$('fileInput').addEventListener('change', handleFileSelection);
 
 // ---------- Shared files list (public files, with admin delete) ----------
 socket.on('files', (list) => {

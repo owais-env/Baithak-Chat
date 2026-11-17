@@ -7,6 +7,7 @@ the Wi-Fi and use it in the browser, with nothing to install on them.
 ## Features
 - Real-time group chat and private chat
 - Share files and pictures in the chat with the + button
+- Tag online people in messages by typing @ and choosing a name
 - Online users list
 - Admin-protected file deletion
 
@@ -37,8 +38,11 @@ hotspot (or connect everyone to the same router), then run:
 
 ```bash
 npm install
-npm start
+node server.js
 ```
+
+On the same computer, open `http://localhost:3000` in a browser to test the app.
+
 ## Android (Termux)
 1. Install Termux from F-Droid.
 2. Run:
@@ -63,4 +67,3 @@ MIT
 Muhammad Owais
 Muhammad Shoaib
 Muhammad Mudassir Iqbal
-

@@ -22,7 +22,7 @@
      <header>
        <strong>Baithak</strong>
        <span id="count"></span>
-       <button type="button" id="menuBtn">People &amp; files</button>
+       <button type="button" id="menuBtn" aria-controls="peopleDrawer" aria-expanded="false">People &amp; files</button>
      </header>
     <main>
       <section id="chat">
@@ -30,16 +30,35 @@
         <div id="messages"></div>
         <div id="uploadStatus" hidden></div>
         <form id="msgForm">
-          <input id="msgInput" autocomplete="off" placeholder="Message everyone">
+          <div id="mentionPicker" class="mention-picker" role="listbox" aria-label="People to tag" hidden>
+          </div>
+          <div id="emojiPicker" class="emoji-picker" role="group" aria-label="Quick emoji reactions" hidden>
+            <div class="emoji-picker-heading">
+              <strong>Quick reactions</strong>
+              <span>Tap an emoji to send</span>
+            </div>
+            <div class="emoji-grid">
+              <button type="button" class="emoji-option" data-emoji="👍" aria-label="Send thumbs up">👍</button>
+              <button type="button" class="emoji-option" data-emoji="👏" aria-label="Send applause">👏</button>
+              <button type="button" class="emoji-option" data-emoji="❤️" aria-label="Send heart">❤️</button>
+              <button type="button" class="emoji-option" data-emoji="😂" aria-label="Send laughing face">😂</button>
+              <button type="button" class="emoji-option" data-emoji="😮" aria-label="Send surprised face">😮</button>
+              <button type="button" class="emoji-option" data-emoji="🎉" aria-label="Send party popper">🎉</button>
+              <button type="button" class="emoji-option" data-emoji="🙏" aria-label="Send folded hands">🙏</button>
+              <button type="button" class="emoji-option" data-emoji="👎" aria-label="Send thumbs down">👎</button>
+            </div>
+          </div>
+          <button type="button" id="emojiBtn" aria-label="Open emoji reactions" aria-controls="emojiPicker" aria-expanded="false">😊</button>
+          <input id="msgInput" autocomplete="off" placeholder="Message everyone" aria-autocomplete="list" aria-controls="mentionPicker">
           <button type="button" id="plusBtn" title="Send a file">+</button>
-          <button type="submit">Send</button>
+          <button type="submit" id="sendBtn">Send <span aria-hidden="true">➤</span></button>
           <input type="file" id="fileInput" hidden>
         </form>
       </section>
-      <aside>
+      <aside id="peopleDrawer">
         <button type="button" id="asideClose">Close ✕</button>
         <h3>Online</h3>
-        <p class="hint">Tap a name to chat privately</p>
+        <p class="hint">Tap a name to chat privately. Type @ in a message to tag someone.</p>
         <ul id="users"></ul>
         <h3>Shared files</h3>
         <ul id="files"></ul>
