@@ -8,8 +8,8 @@
 cd "$(dirname "$0")" || exit 1
 
 IFACE=""
-SSID="LocalShare"
-PASS="localshare123"
+SSID="Baithak"
+PASS="Baithak123"
 PORT=3000
 NO_HOTSPOT=0
 IS_TERMUX=0
