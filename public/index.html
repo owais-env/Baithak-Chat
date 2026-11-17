@@ -1,53 +1,214 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Baithak</title>
+
+  <title>Baithak — Your Local Space</title>
+  <meta name="theme-color" content="#3978e8">
+  <meta name="description" content="A private local Wi-Fi space for conversations and file sharing.">
+
   <link rel="stylesheet" href="style.css">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#228be6">
   <link rel="apple-touch-icon" href="mega-creator.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
-<body>
-  <div id="login">
-    <h1>Baithak</h1>
-    <p>Baithak offine chat and file sharing. No internet needed.</p>
-    <input id="nameInput" maxlength="20" placeholder="Your name" autofocus>
-    <button id="joinBtn">Join</button>
-  </div>
 
+<body>
+
+  <!-- JOIN SCREEN -->
+  <section id="login">
+    <div class="login-brand">
+      	<img
+	  src="/512.png"
+	  class="brand-icon"
+	  alt="Baithak Logo"
+	>
+      <h1>Baithak<span>.</span></h1>
+      <p>Your people. Your space. Your conversations.</p>
+    </div>
+
+    <div class="login-form">
+      <label for="nameInput">What should we call you?</label>
+      <input
+        id="nameInput"
+        type="text"
+        maxlength="20"
+        placeholder="Enter your name"
+        autocomplete="name"
+        autofocus
+      >
+      <button id="joinBtn" type="button">
+        Enter Baithak <span>→</span>
+      </button>
+      <p class="privacy-note">
+        <span>●</span> Private local network · No internet required
+      </p>
+    </div>
+  </section>
+
+  <!-- MAIN APPLICATION -->
   <div id="app" hidden>
-     <header>
-       <strong>Baithak</strong>
-       <span id="count"></span>
-       <button type="button" id="menuBtn">People &amp; files</button>
-     </header>
-    <main>
+
+    <!-- TOP NAVIGATION -->
+    <header class="topbar">
+      <div class="brand">
+        <img
+	    id="top"
+	    src="\512.png"
+	    class="brand-icon"
+	    alt="Baithak Logo"
+	>
+        <div>
+          <strong>Baithak<span>.</span></strong>
+          <small>Your local community</small>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <div id="connectionStatus" class="connection-status">
+          <span class="status-dot"></span>
+          <span id="connectionText">Connecting</span>
+        </div>
+
+        <div class="online-count">
+          <span id="count">0 online</span>
+        </div>
+
+        <button id="menuBtn" type="button">
+          <span>☰</span> People
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="workspace">
+
+      <!-- CHAT SECTION -->
       <section id="chat">
+
+        <!-- CONVERSATION HEADER -->
+        <div class="conversation-header">
+          <div class="conversation-avatar" id="chatAvatar">G</div>
+
+          <div class="conversation-info">
+            <h2 id="chatTitle">Everyone</h2>
+            <p id="chatSubtitle">Messages shared with everyone</p>
+          </div>
+
+          <div class="conversation-actions">
+            <span class="secure-label">● Local chat</span>
+          </div>
+        </div>
+
+        <!-- CHAT TABS -->
         <div id="tabs"></div>
-        <div id="messages"></div>
+
+        <!-- MESSAGES -->
+        <div id="messages" aria-live="polite">
+        </div>
+
+        <!-- UPLOAD STATUS -->
         <div id="uploadStatus" hidden></div>
+
+        <!-- MESSAGE COMPOSER -->
         <form id="msgForm">
-          <input id="msgInput" autocomplete="off" placeholder="Message everyone">
-          <button type="button" id="plusBtn" title="Send a file">+</button>
-          <button type="submit">Send</button>
+
+          <button
+            type="button"
+            id="plusBtn"
+            title="Attach a file"
+            aria-label="Attach a file"
+          >＋</button>
+
+          <input
+            id="msgInput"
+            type="text"
+            autocomplete="off"
+            maxlength="1000"
+            placeholder="Write something..."
+            aria-label="Write a message"
+          >
+
+          <button type="submit" id="sendBtn">
+            Send <span>➤</span>
+          </button>
+
           <input type="file" id="fileInput" hidden>
+
         </form>
+
+        <div class="composer-footer">
+          <span>Share something with your people.</span>
+          <span>Baithak · Local network</span>
+        </div>
+
       </section>
-      <aside>
-        <button type="button" id="asideClose">Close ✕</button>
-        <h3>Online</h3>
-        <p class="hint">Tap a name to chat privately</p>
-        <ul id="users"></ul>
-        <h3>Shared files</h3>
-        <ul id="files"></ul>
+
+      <!-- PEOPLE AND FILES SIDEBAR -->
+      <aside id="sidebar">
+
+        <button type="button" id="asideClose">
+          Close sidebar <span>×</span>
+        </button>
+
+        <!-- CURRENT USER -->
+        <div class="profile-card">
+          <div class="profile-avatar" id="myAvatar">U</div>
+          <div class="profile-details">
+            <strong id="myName">User</strong>
+            <small><span class="status-dot"></span> Active now</small>
+          </div>
+        </div>
+
+        <!-- ONLINE PEOPLE -->
+        <div class="sidebar-section">
+          <div class="section-heading">
+            <h3>People</h3>
+            <span id="peopleCount">0</span>
+          </div>
+
+          <div class="search-wrapper">
+            <span>⌕</span>
+            <input
+              id="userSearch"
+              type="search"
+              placeholder="Find someone..."
+              autocomplete="off"
+            >
+          </div>
+
+          <p class="hint">Start a private conversation</p>
+          <ul id="users"></ul>
+        </div>
+
+        <!-- SHARED FILES -->
+        <div class="sidebar-section files-section">
+          <div class="section-heading">
+            <h3>Shared files</h3>
+            <span>⌁</span>
+          </div>
+
+          <p class="hint">Files shared with everyone</p>
+          <ul id="files"></ul>
+        </div>
+
+        <div class="sidebar-footer">
+          <strong>Baithak.</strong>
+          <p>Made for conversations that matter.</p>
+        </div>
+
       </aside>
     </main>
   </div>
+
+  <!-- MOBILE BACKDROP -->
   <div id="backdrop"></div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="app.js"></script>
+
 </body>
 </html>
+
