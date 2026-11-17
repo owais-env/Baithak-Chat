@@ -7,6 +7,7 @@ let currentChat = 'all';          // 'all' or another user's socket id
 const chats = { all: [] };        // chat key -> list of messages
 const chatNames = { all: 'Everyone' };
 const unread = {};
+let onlineUsers = [];
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp)$/i;
 const AUDIO_EXT = /\.(aac|m4a|mp3|oga|ogg|opus|wav|weba|webm)$/i;
@@ -98,16 +99,6 @@ function buildMessage(m) {
       img.className = 'preview';
       img.onclick = () => openImage(url);
       div.appendChild(img);
-    }
-
-    if (AUDIO_EXT.test(m.fileName)) {
-      const audio = document.createElement('audio');
-      audio.src = url;
-      audio.controls = true;
-      audio.preload = 'metadata';
-      audio.className = 'voice-player';
-      audio.setAttribute('aria-label', `Play audio message from ${m.name}`);
-      div.appendChild(audio);
     }
 
     const card = document.createElement('a');
@@ -218,6 +209,7 @@ socket.on('private', (m) => {
 });
 
 socket.on('users', (list) => {
+  onlineUsers = list;
   $('count').textContent = `${list.length} online`;
   const ul = $('users');
   ul.innerHTML = '';
@@ -252,6 +244,100 @@ $('msgForm').addEventListener('submit', (e) => {
     });
   }
   $('msgInput').value = '';
+  hideMentionPicker();
+});
+
+// ---------- People tags ----------
+const msgInput = $('msgInput');
+const mentionPicker = $('mentionPicker');
+let mentionOptions = [];
+let selectedMention = 0;
+let mentionRange = null;
+
+function hideMentionPicker() {
+  mentionPicker.hidden = true;
+  mentionPicker.replaceChildren();
+  mentionOptions = [];
+  mentionRange = null;
+}
+
+function updateMentionPicker() {
+  const caret = msgInput.selectionStart;
+  const beforeCaret = msgInput.value.slice(0, caret);
+  const at = beforeCaret.lastIndexOf('@');
+  if (at < 0 || (at > 0 && !/\s/.test(beforeCaret[at - 1]))) {
+    hideMentionPicker();
+    return;
+  }
+
+  const query = beforeCaret.slice(at + 1);
+  if (/[\r\n,!?]/.test(query)) {
+    hideMentionPicker();
+    return;
+  }
+
+  mentionOptions = onlineUsers
+    .filter((user) => user.id !== socket.id && user.name.toLowerCase().startsWith(query.toLowerCase()))
+    .slice(0, 6);
+  if (!mentionOptions.length) {
+    hideMentionPicker();
+    return;
+  }
+
+  mentionRange = { start: at, end: caret };
+  selectedMention = 0;
+  mentionPicker.replaceChildren();
+  mentionOptions.forEach((user, index) => {
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = 'mention-option' + (index === selectedMention ? ' selected' : '');
+    option.setAttribute('role', 'option');
+    option.textContent = '@' + user.name;
+    option.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      selectMention(index);
+    });
+    option.addEventListener('click', () => selectMention(index));
+    mentionPicker.appendChild(option);
+  });
+  mentionPicker.hidden = false;
+}
+
+function selectMention(index) {
+  const user = mentionOptions[index];
+  if (!user || !mentionRange) return;
+
+  const start = mentionRange.start;
+  const end = mentionRange.end;
+  const insertion = '@' + user.name + ' ';
+  msgInput.value = msgInput.value.slice(0, start) + insertion + msgInput.value.slice(end);
+  const caret = start + insertion.length;
+  msgInput.focus();
+  msgInput.setSelectionRange(caret, caret);
+  hideMentionPicker();
+}
+
+msgInput.addEventListener('input', updateMentionPicker);
+msgInput.addEventListener('click', updateMentionPicker);
+msgInput.addEventListener('keyup', (event) => {
+  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown' && event.key !== 'Escape') {
+    updateMentionPicker();
+  }
+});
+msgInput.addEventListener('keydown', (event) => {
+  if (mentionPicker.hidden) return;
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    selectedMention = (selectedMention + (event.key === 'ArrowDown' ? 1 : mentionOptions.length - 1)) % mentionOptions.length;
+    [...mentionPicker.children].forEach((option, index) => {
+      option.classList.toggle('selected', index === selectedMention);
+    });
+  } else if (event.key === 'Enter' && mentionOptions[selectedMention]) {
+    event.preventDefault();
+    selectMention(selectedMention);
+  } else if (event.key === 'Escape') {
+    hideMentionPicker();
+  }
 });
 
 // ---------- Quick emoji reactions ----------
@@ -279,10 +365,17 @@ emojiPicker.addEventListener('click', (e) => {
 
 // ---------- Sending files with the + button ----------
 $('plusBtn').onclick = () => $('fileInput').click();
-$('audioUploadBtn').onclick = () => $('audioFileInput').click();
 
 function uploadFile(file, onComplete) {
   if (!file) return;
+  if (file.type.toLowerCase().startsWith('audio/') || AUDIO_EXT.test(file.name)) {
+    const status = $('uploadStatus');
+    status.hidden = false;
+    status.textContent = 'Audio sharing is not available.';
+    setTimeout(() => { status.hidden = true; }, 4000);
+    if (onComplete) onComplete(false);
+    return;
+  }
 
   const form = new FormData();
   form.append('file', file);
@@ -330,156 +423,6 @@ function handleFileSelection(event) {
 }
 
 $('fileInput').addEventListener('change', handleFileSelection);
-$('audioFileInput').addEventListener('change', handleFileSelection);
-
-// ---------- Voice recording ----------
-const recordBtn = $('recordBtn');
-const voicePanel = $('voicePanel');
-const voiceError = $('voiceError');
-const voiceRecordingStatus = $('voiceRecordingStatus');
-const voicePreviewRow = $('voicePreviewRow');
-const voicePreview = $('voicePreview');
-const sendRecordingBtn = $('sendRecordingBtn');
-let mediaRecorder = null;
-let recordingStream = null;
-let recordingChunks = [];
-let recordingTimer = null;
-let recordingStartedAt = 0;
-let recordingBlob = null;
-let recordingUrl = '';
-
-function formatRecordingTime(seconds) {
-  const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
-  const remainder = (seconds % 60).toString().padStart(2, '0');
-  return `${minutes}:${remainder}`;
-}
-
-function stopRecordingStream() {
-  if (recordingTimer) clearInterval(recordingTimer);
-  recordingTimer = null;
-  if (recordingStream) recordingStream.getTracks().forEach((track) => track.stop());
-  recordingStream = null;
-}
-
-function resetVoiceRecording() {
-  stopRecordingStream();
-  if (recordingUrl) URL.revokeObjectURL(recordingUrl);
-  recordingUrl = '';
-  recordingBlob = null;
-  mediaRecorder = null;
-  recordingChunks = [];
-  voicePreview.removeAttribute('src');
-  voicePreview.load();
-  voicePanel.hidden = true;
-  voiceRecordingStatus.hidden = true;
-  voicePreviewRow.hidden = true;
-  voiceError.hidden = true;
-  voiceError.textContent = '';
-  recordBtn.disabled = false;
-  recordBtn.textContent = '🎙';
-  recordBtn.setAttribute('aria-label', 'Record a voice message');
-  recordBtn.title = 'Record a voice message';
-  sendRecordingBtn.disabled = false;
-}
-
-function stopVoiceRecording() {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    recordBtn.disabled = true;
-    mediaRecorder.stop();
-  }
-}
-
-async function startVoiceRecording() {
-  voicePanel.hidden = false;
-  voiceError.hidden = true;
-  if (!window.isSecureContext) {
-    voiceError.textContent = 'Microphone recording requires HTTPS on phones. Audio-file uploads still work over your local Wi-Fi.';
-    voiceError.hidden = false;
-    return;
-  }
-  if (!navigator.mediaDevices || !window.MediaRecorder) {
-    voiceError.textContent = 'This browser does not support voice recording. You can still upload an audio file.';
-    voiceError.hidden = false;
-    return;
-  }
-
-  recordBtn.disabled = true;
-  try {
-    recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4']
-      .find((type) => MediaRecorder.isTypeSupported(type));
-    const recorder = new MediaRecorder(recordingStream, mimeType ? { mimeType } : undefined);
-    mediaRecorder = recorder;
-    recordingChunks = [];
-    recorder.ondataavailable = (event) => {
-      if (event.data.size) recordingChunks.push(event.data);
-    };
-    recorder.onerror = () => {
-      voiceError.textContent = 'Recording failed. Please try again or upload an audio file.';
-      voiceError.hidden = false;
-      stopVoiceRecording();
-    };
-    recorder.onstop = () => {
-      stopRecordingStream();
-      recordingBlob = new Blob(recordingChunks, { type: recorder.mimeType || 'audio/webm' });
-      if (!recordingBlob.size) {
-        voiceError.textContent = 'No audio was recorded. Please try again.';
-        voiceError.hidden = false;
-        voiceRecordingStatus.hidden = true;
-        recordBtn.disabled = false;
-        recordBtn.textContent = '🎙';
-        recordBtn.setAttribute('aria-label', 'Record a voice message');
-        recordBtn.title = 'Record a voice message';
-        return;
-      }
-      recordingUrl = URL.createObjectURL(recordingBlob);
-      voicePreview.src = recordingUrl;
-      voiceRecordingStatus.hidden = true;
-      voicePreviewRow.hidden = false;
-      recordBtn.disabled = true;
-      recordBtn.textContent = '🎙';
-      recordBtn.setAttribute('aria-label', 'Voice recording ready');
-      recordBtn.title = 'Voice recording ready to send or discard';
-    };
-    recordingStartedAt = Date.now();
-    $('voiceTimer').textContent = '00:00';
-    voiceRecordingStatus.hidden = false;
-    voicePreviewRow.hidden = true;
-    recordBtn.textContent = '■';
-    recordBtn.setAttribute('aria-label', 'Stop recording');
-    recordBtn.title = 'Stop recording';
-    recorder.start();
-    recordingTimer = setInterval(() => {
-      $('voiceTimer').textContent = formatRecordingTime(Math.floor((Date.now() - recordingStartedAt) / 1000));
-    }, 1000);
-  } catch (error) {
-    stopRecordingStream();
-    voiceError.textContent = error.name === 'NotAllowedError'
-      ? 'Microphone access was denied. Allow microphone access in your browser, or upload an audio file.'
-      : `Could not start recording: ${error.message}`;
-    voiceError.hidden = false;
-    recordBtn.disabled = false;
-  }
-}
-
-recordBtn.onclick = () => {
-  if (mediaRecorder && mediaRecorder.state === 'recording') stopVoiceRecording();
-  else startVoiceRecording();
-};
-$('stopRecordingBtn').onclick = stopVoiceRecording;
-$('discardRecordingBtn').onclick = resetVoiceRecording;
-sendRecordingBtn.onclick = () => {
-  if (!recordingBlob) return;
-  const extension = recordingBlob.type.includes('ogg') ? 'ogg'
-    : recordingBlob.type.includes('mp4') ? 'm4a'
-      : 'webm';
-  const file = new File([recordingBlob], `voice-message-${Date.now()}.${extension}`, { type: recordingBlob.type });
-  sendRecordingBtn.disabled = true;
-  uploadFile(file, (success) => {
-    if (success) resetVoiceRecording();
-    else sendRecordingBtn.disabled = false;
-  });
-};
 
 // ---------- Shared files list (public files, with admin delete) ----------
 socket.on('files', (list) => {

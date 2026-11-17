@@ -18,17 +18,7 @@ if (Boolean(TLS_KEY_PATH) !== Boolean(TLS_CERT_PATH)) {
 const USE_HTTPS = Boolean(TLS_KEY_PATH && TLS_CERT_PATH);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || crypto.randomBytes(4).toString('hex');
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
-const AUDIO_MIME_TYPES = {
-  '.aac': 'audio/aac',
-  '.m4a': 'audio/mp4',
-  '.mp3': 'audio/mpeg',
-  '.oga': 'audio/ogg',
-  '.ogg': 'audio/ogg',
-  '.opus': 'audio/ogg',
-  '.wav': 'audio/wav',
-  '.weba': 'audio/webm',
-  '.webm': 'audio/webm',
-};
+const AUDIO_EXTENSIONS = new Set(['.aac', '.m4a', '.mp3', '.oga', '.ogg', '.opus', '.wav', '.weba', '.webm']);
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const app = express();
@@ -69,7 +59,7 @@ const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 } }); // 
 function listFiles() {
   return fs
     .readdirSync(UPLOAD_DIR)
-    .filter((id) => !id.startsWith('P')) // hide private files
+    .filter((id) => !id.startsWith('P') && !AUDIO_EXTENSIONS.has(path.extname(id).toLowerCase()))
     .map((id) => {
       const stat = fs.statSync(path.join(UPLOAD_DIR, id));
       return {
@@ -93,6 +83,11 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     fs.unlink(req.file.path, () => {});
     return res.status(code).json({ error: msg });
   };
+
+  if (req.file.mimetype.toLowerCase().startsWith('audio/')
+    || AUDIO_EXTENSIONS.has(path.extname(req.file.originalname).toLowerCase())) {
+    return fail(415, 'Audio sharing is not available');
+  }
 
   const senderId = req.headers['x-socket-id'];
   const sender = users.get(senderId);
@@ -126,10 +121,11 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
 
 app.get('/download/:id', (req, res) => {
   const id = path.basename(req.params.id);
+  if (AUDIO_EXTENSIONS.has(path.extname(id).toLowerCase())) {
+    return res.status(410).send('Audio sharing is not available');
+  }
   const filePath = path.join(UPLOAD_DIR, id);
   if (!fs.existsSync(filePath)) return res.status(404).send('File not found');
-  const audioMimeType = AUDIO_MIME_TYPES[path.extname(id).toLowerCase()];
-  if (audioMimeType) return res.type(audioMimeType).sendFile(filePath);
   res.download(filePath, id.slice(id.indexOf('-') + 1));
 });
 
