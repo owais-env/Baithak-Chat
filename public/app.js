@@ -17,6 +17,50 @@ let onlineUsers = [];
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp)$/i;
 
+
+const FILE_TYPES = {
+  excel: {
+    extensions: ['xls', 'xlsx', 'csv'],
+    label: 'X',
+    className: 'excel'
+  },
+  powerpoint: {
+    extensions: ['ppt', 'pptx'],
+    label: 'P',
+    className: 'powerpoint'
+  },
+  word: {
+    extensions: ['doc', 'docx'],
+    label: 'W',
+    className: 'word'
+  },
+  image: {
+    extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'],
+    label: '▧',
+    className: 'image'
+  }
+};
+
+function getFileIcon(filename) {
+  const extension = filename.split('.').pop().toLowerCase();
+
+  for (const [type, data] of Object.entries(FILE_TYPES)) {
+    if (data.extensions.includes(extension)) {
+      return {
+        type,
+        ...data
+      };
+    }
+  }
+
+  return {
+    type: 'other',
+    label: '↧',
+    className: 'other'
+  };
+}
+
+
 // --------------------------------------------------
 // HELPERS
 // --------------------------------------------------
@@ -278,9 +322,10 @@ function buildMessage(message) {
 
     const icon = document.createElement('span');
     icon.className = 'file-icon';
-    icon.textContent = IMAGE_EXT.test(message.fileName)
-      ? '▧'
-      : '↧';
+    const fileType = getFileIcon(message.fileName);
+
+    icon.textContent = fileType.label;
+    icon.classList.add(fileType.className);
 
     const info = document.createElement('span');
     info.className = 'file-info';
@@ -763,7 +808,10 @@ socket.on('files', (list) => {
 
     const icon = document.createElement('div');
     icon.className = 'shared-file-icon';
-    icon.textContent = IMAGE_EXT.test(file.name) ? '▧' : '↧';
+    const fileType = getFileIcon(file.name);
+
+    icon.textContent = fileType.label;
+    icon.classList.add(fileType.className);
 
     const info = document.createElement('div');
     info.className = 'shared-file-info';

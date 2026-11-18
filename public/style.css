@@ -1664,3 +1664,57 @@ img.brand-icon.small {
   }
 }
 
+
+/* =================================
+   BAITHAK FILE TYPE ICONS
+================================= */
+
+.file-icon,
+.shared-file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  font-size: 19px;
+  font-weight: 800;
+  font-family: Arial, sans-serif;
+}
+
+/* Excel */
+.file-icon.excel,
+.shared-file-icon.excel {
+  background: #e4f5eb;
+  color: #18864b;
+}
+
+/* PowerPoint */
+.file-icon.powerpoint,
+.shared-file-icon.powerpoint {
+  background: #fff0e8;
+  color: #d65b27;
+}
+
+/* Word */
+.file-icon.word,
+.shared-file-icon.word {
+  background: #e8f0ff;
+  color: #2867c7;
+}
+
+/* Images */
+.file-icon.image,
+.shared-file-icon.image {
+  background: #f1eaff;
+  color: #8656cb;
+}
+
+/* Other files */
+.file-icon.other,
+.shared-file-icon.other {
+  background: #edf1f6;
+  color: #687991;
+}
+
